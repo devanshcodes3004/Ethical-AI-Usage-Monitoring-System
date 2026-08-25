@@ -1,0 +1,31 @@
+streamlit
+python-dotenv
+
+# Database
+sqlalchemy
+pandas
+
+# Charts
+plotly
+matplotlib
+
+# LLMs
+google-genai
+ollama
+transformers
+huggingface_hub
+sentence-transformers
+accelerate
+
+# Machine Learning
+scikit-learn
+numpy
+joblib
+
+# Risk Detection
+presidio-analyzer
+presidio-anonymizer
+detoxify
+
+
+python-dotenv
