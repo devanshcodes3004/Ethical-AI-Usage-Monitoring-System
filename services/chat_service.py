@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from database.audit_repository import AuditRepository
 from database.message_repository import MessageRepository
+from database.session_repository import SessionRepository
 from database.models import AuditLogDocument, MessageDocument
 
 from router.router import Router
@@ -22,6 +23,7 @@ class ChatService:
         self.governance = GovernanceService()
         self.message_repository = MessageRepository()
         self.audit_repository = AuditRepository()
+        self.session_repository = SessionRepository()
 
     def get_chat_history(
         self,
@@ -75,9 +77,30 @@ class ChatService:
             content=prompt
         )
 
-        self.message_repository.save_message(
+        message_id = self.message_repository.save_message(
             user_message
         )
+
+        # =====================================================
+        # Update Chat Title
+        # =====================================================
+
+        session = self.session_repository.get_session(
+            session_id
+        )
+
+        if session and session["title"] == "New Chat":
+
+            title = prompt.strip()
+
+            if len(title) > 35:
+
+                title = title[:35] + "..."
+
+            self.session_repository.update_session_title(
+                session_id,
+                title
+            )
 
         # =====================================================
         # BLOCK REQUEST
@@ -109,7 +132,8 @@ class ChatService:
             audit = AuditLogDocument(
                 session_id=session_id,
                 user_id=user_id,
-                message_id="",
+                message_id=message_id,
+                prompt=prompt,
                 risk_score=decision.risk_score,
                 risk_level=decision.risk_level.value,
                 decision=decision.decision.value,
@@ -165,6 +189,10 @@ class ChatService:
             decision.selected_model.value
         )
 
+        # =====================================================
+        # Generate Response
+        # =====================================================
+
         result = model.invoke(history)
 
         response = result["response"]
@@ -192,7 +220,8 @@ class ChatService:
         audit = AuditLogDocument(
             session_id=session_id,
             user_id=user_id,
-            message_id="",
+            message_id=message_id,
+            prompt=prompt,
             risk_score=decision.risk_score,
             risk_level=decision.risk_level.value,
             decision=decision.decision.value,

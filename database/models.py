@@ -11,13 +11,9 @@ from pydantic import BaseModel, Field
 
 
 class UserDocument(BaseModel):
-
     username: str
-
     email: str
-
     password: str
-
     role: str = "USER"
 
     created_at: datetime = Field(
@@ -28,9 +24,7 @@ class UserDocument(BaseModel):
 
 
 class SessionDocument(BaseModel):
-
     user_id: str
-
     title: str
 
     created_at: datetime = Field(
@@ -45,17 +39,12 @@ class SessionDocument(BaseModel):
 
 
 class MessageDocument(BaseModel):
-
     session_id: str
-
     user_id: str
-
     role: str
-
     content: str
 
     model: Optional[str] = None
-
     latency: Optional[float] = None
 
     timestamp: datetime = Field(
@@ -64,25 +53,21 @@ class MessageDocument(BaseModel):
 
 
 class AuditLogDocument(BaseModel):
-
     session_id: str
-
     user_id: str
-
     message_id: str
 
+    # Exact prompt submitted by the user
+    prompt: str
+
     risk_score: int
-
     risk_level: str
-
     decision: str
 
     categories: List[str]
 
     reason: str
-
     confidence: float
-
     selected_model: str
 
     timestamp: datetime = Field(

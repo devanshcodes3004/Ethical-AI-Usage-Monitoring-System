@@ -31,7 +31,9 @@ class DashboardRepository:
         try:
 
             return self.sessions.count_documents(
-                {"is_deleted": False}
+                {
+                    "is_deleted": False
+                }
             )
 
         except Exception as e:
@@ -51,7 +53,9 @@ class DashboardRepository:
         try:
 
             return self.audit_logs.count_documents(
-                {"decision": "ALLOW"}
+                {
+                    "decision": "ALLOW"
+                }
             )
 
         except Exception as e:
@@ -62,7 +66,9 @@ class DashboardRepository:
         try:
 
             return self.audit_logs.count_documents(
-                {"decision": "BLOCK"}
+                {
+                    "decision": "BLOCK"
+                }
             )
 
         except Exception as e:
@@ -87,7 +93,10 @@ class DashboardRepository:
                 )
             )
 
-            return 0 if not result else round(
+            if not result:
+                return 0
+
+            return round(
                 result[0]["average"],
                 2
             )
@@ -100,13 +109,18 @@ class DashboardRepository:
         try:
 
             document = self.audit_logs.find_one(
-                sort=[("risk_score", -1)]
+                sort=[
+                    ("risk_score", -1)
+                ]
             )
 
             if document is None:
                 return 0
 
-            return document["risk_score"]
+            return document.get(
+                "risk_score",
+                0
+            )
 
         except Exception as e:
             raise CustomException(e, sys)
@@ -140,7 +154,9 @@ class DashboardRepository:
             return list(
                 self.audit_logs.aggregate(
                     [
-                        {"$unwind": "$categories"},
+                        {
+                            "$unwind": "$categories"
+                        },
                         {
                             "$group": {
                                 "_id": "$categories",
@@ -149,8 +165,14 @@ class DashboardRepository:
                                 }
                             }
                         },
-                        {"$sort": {"count": -1}},
-                        {"$limit": 5}
+                        {
+                            "$sort": {
+                                "count": -1
+                            }
+                        },
+                        {
+                            "$limit": 5
+                        }
                     ]
                 )
             )
@@ -158,22 +180,39 @@ class DashboardRepository:
         except Exception as e:
             raise CustomException(e, sys)
 
-    def get_recent_blocked_requests(self):
+    def get_recent_blocked_requests(
+        self,
+        limit: int = 10
+    ):
 
         try:
 
             return list(
                 self.audit_logs.find(
-                    {"decision": "BLOCK"},
+                    {
+                        "decision": "BLOCK"
+                    },
                     {
                         "_id": 0,
+                        "session_id": 1,
+                        "user_id": 1,
+                        "message_id": 1,
+                        "prompt": 1,
                         "reason": 1,
+                        "risk_score": 1,
+                        "risk_level": 1,
+                        "decision": 1,
+                        "categories": 1,
+                        "confidence": 1,
+                        "selected_model": 1,
                         "timestamp": 1
                     }
-                ).sort(
+                )
+                .sort(
                     "timestamp",
                     -1
-                ).limit(5)
+                )
+                .limit(limit)
             )
 
         except Exception as e:
