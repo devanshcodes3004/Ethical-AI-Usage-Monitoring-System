@@ -71,13 +71,13 @@ def _remove_explicit_exclusion_clauses(prompt):
     """
     text = (prompt or "").casefold()
     clauses = re.split(
-        r"(?<=[.!?;])\\s+|,\\s*(?=(?:but\\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\\b)",
+        r"(?<=[.!?;])\s+|,\s*(?=(?:but\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\b)",
         text,
     )
     return " ".join(
         clause for clause in clauses
         if not re.match(
-            r"^\\s*(?:(?:but|and)\\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\\b",
+            r"^\s*(?:(?:but|and)\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\b",
             clause,
         )
     )
