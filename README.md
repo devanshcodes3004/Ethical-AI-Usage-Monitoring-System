@@ -28,14 +28,16 @@ Two starter policies are inserted when the policy collection is empty. They can 
 
 ## CSV business data for chat
 
-Open **Business Data (CSV)** in Streamlit's multipage navigation to upload approved customer or employee CSV files. The app stores rows in MongoDB's `business_csv_records` collection and retrieves only a small keyword-matched subset for relevant chat questions.
+Open **Business Data (CSV)** in Streamlit's multipage navigation to upload approved customer or employee CSV files. The app stores rows in MongoDB's `business_csv_records` collection and uses sentence-transformer embeddings to retrieve a small semantically relevant subset for chat questions.
 
 - Upload UTF-8 CSV files up to 5 MB and 10,000 rows.
 - Choose whether each file contains Customer or Employee records. Fictional templates are available at `examples/customer_issues_sample.csv` and `examples/employee_reference_sample.csv`.
 - Credential, secret, payment, government-ID, and personal-contact columns (such as password, API key, phone, email, and address) are excluded during import.
 - Recognizable emails, phone numbers, payment-card-like values, and labeled secrets in free-text cells are redacted.
 - Ask questions such as "Summarize the open customer issues" or "What problems are mentioned in the customer records?" The model receives only a few matching, filtered rows.
+- Ask "What are the top 2 customer problems?" to get the two most frequent available issue/category labels and their record counts.
+- Requests for customer phone/mobile numbers, email addresses, or contact details are blocked before retrieval and before the LLM call.
 - Direct requests to retrieve passwords, credentials, API keys, tokens, OTPs, or similar secrets are blocked before CSV retrieval and before an LLM call.
 - Re-uploading the same filename for the same data type replaces that file's imported rows. You can remove an imported source from the page.
 
-**Limitations and safety:** Retrieval currently uses keyword overlap, not semantic/vector search, so phrasing and CSV column names affect what it finds. Secret detection is defense-in-depth, not a guarantee that arbitrary sensitive text can always be recognized. Treat CSVs as untrusted, review them before upload, and use test data first. This demo does not yet authenticate employees or enforce role-based/row-level permissions; anyone who can access the app may be able to query the approved imported business records. Do not upload real credentials, unnecessary personal data, or highly sensitive records.
+**Limitations and safety:** Retrieval uses sentence embeddings from `sentence-transformers/all-MiniLM-L6-v2`; the first import/search may download the model. Existing records are embedded on first search and cached in MongoDB. Secret detection is defense-in-depth, not a guarantee that arbitrary sensitive text can always be recognized. Treat CSVs as untrusted, review them before upload, and use test data first. This demo does not yet authenticate employees or enforce role-based/row-level permissions; anyone who can access the app may be able to query the approved imported business records. Do not upload real credentials, unnecessary personal data, or highly sensitive records.
