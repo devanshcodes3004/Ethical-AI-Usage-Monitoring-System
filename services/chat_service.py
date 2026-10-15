@@ -4,6 +4,8 @@ chat_service.py
 Coordinates governance, safe business-data retrieval, and the chat pipeline.
 """
 
+import re
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from database.audit_repository import AuditRepository
