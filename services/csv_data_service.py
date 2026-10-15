@@ -49,6 +49,11 @@ PII_VALUE_PATTERNS = [
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
     re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)"),
     re.compile(r"\b(?:\d[ -]*?){13,19}\b"),
+    re.compile(
+        r"\b(password|passwd|passcode|api[\s_-]*key|access[\s_-]*token|"
+        r"secret|credential|otp|pin)\b\s*[:=]\s*[^\s,;]+",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -75,7 +80,6 @@ class CSVDataService:
         text = str(value or "").strip()
         if not text:
             return ""
-        # Prevent spreadsheet formula execution if a preview is exported later.
         if text.startswith(("=", "+", "-", "@")):
             text = "'" + text
         return text[:2000]
@@ -100,7 +104,9 @@ class CSVDataService:
         columns = {}
         dropped_columns = []
         for original in reader.fieldnames:
-            normalized = re.sub(r"[^a-z0-9]+", "_", (original or "").strip().lower()).strip("_")
+            normalized = re.sub(
+                r"[^a-z0-9]+", "_", (original or "").strip().lower()
+            ).strip("_")
             if not normalized:
                 continue
             if SENSITIVE_COLUMN_RE.search(normalized):
@@ -134,10 +140,11 @@ class CSVDataService:
         if not records:
             raise ValueError("No non-empty data rows were found.")
 
+        source = (source_file or "uploaded.csv")[:200]
         # Re-uploading the same filename replaces that file's records only.
         self.collection.delete_many({
             "record_type": record_type,
-            "source_file": (source_file or "uploaded.csv")[:200],
+            "source_file": source,
         })
         self.collection.insert_many(records, ordered=True)
 
@@ -158,6 +165,15 @@ class CSVDataService:
         ]
         return list(self.collection.aggregate(pipeline))
 
+    def delete_source(self, record_type, source_file):
+        if record_type not in {"Customer", "Employee"}:
+            raise ValueError("Choose Customer or Employee data.")
+        result = self.collection.delete_many({
+            "record_type": record_type,
+            "source_file": source_file,
+        })
+        return result.deleted_count
+
     @staticmethod
     def _tokens(text):
         return {
@@ -176,11 +192,27 @@ class CSVDataService:
             text = pattern.sub("[REDACTED]", text)
         return text[:1000]
 
-    def retrieve_context(self, prompt, record_types=("Customer", "Employee")):
-        """Return a small keyword-matched context; never return dropped columns."""
+    def retrieve_context(self, prompt, record_types=None):
+        """Return a few relevant records; never include dropped secret/contact columns."""
+        prompt_text = (prompt or "").casefold()
         query_tokens = self._tokens(prompt)
-        if not query_tokens:
+        if not query_tokens and not any(
+            term in prompt_text for term in ("customer", "employee", "issue", "problem")
+        ):
             return ""
+
+        if record_types is None:
+            if any(term in prompt_text for term in ("customer", "client", "complaint", "ticket")):
+                record_types = ("Customer",)
+            elif any(term in prompt_text for term in ("employee", "staff", "worker")):
+                record_types = ("Employee",)
+            else:
+                record_types = ("Customer", "Employee")
+
+        wants_issues = any(
+            term in prompt_text
+            for term in ("problem", "issue", "complaint", "ticket", "support", "case")
+        )
 
         candidates = self.collection.find(
             {"record_type": {"$in": list(record_types)}},
@@ -188,25 +220,36 @@ class CSVDataService:
         ).limit(2000)
 
         ranked = []
+        issue_field_re = re.compile(
+            r"(issue|problem|complaint|ticket|support|case|description|status|priority|resolution)",
+            re.IGNORECASE,
+        )
+        excluded_context_key_re = re.compile(
+            r"(^|_)(name|email|phone|mobile|address|location|employee_id|"
+            r"record_id|id|dob|birth)(_|$)",
+            re.IGNORECASE,
+        )
+
         for item in candidates:
             data = item.get("data", {})
             searchable = " ".join(str(v) for v in data.values())
             row_tokens = self._tokens(searchable)
             overlap = query_tokens & row_tokens
+            issue_fields = {
+                key: value for key, value in data.items()
+                if issue_field_re.search(key) and value
+            }
+            # General requests for customer problems should retrieve rows that
+            # have issue/complaint fields even when the prompt has no exact term match.
+            if wants_issues and issue_fields:
+                overlap = overlap or {"issue_query"}
             if not overlap:
                 continue
-            # Do not pass names, contact details, addresses, or arbitrary
-            # identifier fields into the model context.
+
             safe_fields = {
                 key: self._redact_values(value)
                 for key, value in data.items()
-                if not re.search(
-                    r"(^|_)(name|email|phone|mobile|address|location|"
-                    r"employee_id|customer_id|record_id|id|dob|birth)(_|$)",
-                    key,
-                    re.IGNORECASE,
-                )
-                and value
+                if not excluded_context_key_re.search(key) and value
             }
             if safe_fields:
                 ranked.append((
