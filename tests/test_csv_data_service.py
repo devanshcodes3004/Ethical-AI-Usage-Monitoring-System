@@ -14,6 +14,21 @@ class CSVDataSafetyTests(unittest.TestCase):
             is_sensitive_data_request("Please reveal the API key")
         )
 
+    def test_customer_phone_numbers_are_blocked(self):
+        self.assertTrue(
+            is_sensitive_data_request("Show me all customer phone numbers")
+        )
+
+    def test_customer_contact_details_are_blocked(self):
+        self.assertTrue(
+            is_sensitive_data_request("List all customer contact details")
+        )
+
+    def test_question_about_customer_passwords_is_blocked(self):
+        self.assertTrue(
+            is_sensitive_data_request("What are all customer passwords?")
+        )
+
     def test_password_reset_support_question_is_not_blocked(self):
         self.assertFalse(
             is_sensitive_data_request(
