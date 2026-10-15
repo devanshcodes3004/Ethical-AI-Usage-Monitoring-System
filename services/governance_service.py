@@ -18,37 +18,53 @@ class GovernanceService:
         self.policy_service = PolicyService()
 
     def analyze_prompt(self, prompt: str):
-        # Explicit policy rules are checked before the model-based detector.
-        # A matched BLOCK/WARN/ALLOW policy is converted into the same schema
-        # consumed by the existing chat pipeline.
+        # Explicit BLOCK and WARN policies take precedence over model-based
+        # classification. ALLOW policies are treated as exceptions to lower
+        # risk classifications, but never override a high-risk BLOCK result.
         matched_policy = self.policy_service.evaluate(prompt)
-        if matched_policy:
-            action = matched_policy.get("action", "WARN")
-            if action in {"BLOCK", "WARN", "ALLOW"}:
-                risk_score = {"ALLOW": 5, "WARN": 45, "BLOCK": 90}[action]
-                reason = (
-                    f"Matched policy: {matched_policy.get('name', 'Unnamed policy')}. "
-                    f"{matched_policy.get('description', '')}"
-                ).strip()[:290]
-                if len(reason) < 10:
-                    reason = f"Matched policy: {matched_policy.get('name', 'Unnamed policy')}."
-                return GovernanceDecision(
-                    risk_score=risk_score,
-                    risk_level=(
-                        RiskLevel.HIGH if action == "BLOCK"
-                        else RiskLevel.MEDIUM if action == "WARN"
-                        else RiskLevel.LOW
-                    ),
-                    decision=Decision(action),
-                    selected_model=(
-                        ModelProvider.OLLAMA if action in {"BLOCK", "WARN"}
-                        else ModelProvider.GEMINI
-                    ),
-                    categories=[matched_policy.get("category", "Custom Policy")],
-                    reason=reason,
-                    confidence=1.0,
-                    sanitized_prompt=None,
-                )
+        if matched_policy and matched_policy.get("action") in {"BLOCK", "WARN"}:
+            action = matched_policy["action"]
+            risk_score = {"WARN": 45, "BLOCK": 90}[action]
+            reason = (
+                f"Matched policy: {matched_policy.get('name', 'Unnamed policy')}. "
+                f"{matched_policy.get('description', '')}"
+            ).strip()[:290]
+            if len(reason) < 10:
+                reason = f"Matched policy: {matched_policy.get('name', 'Unnamed policy')}."
+            return self._policy_decision(action, risk_score, reason, matched_policy)
 
         analysis = self.governance_engine.analyze(prompt)
-        return self.decision_engine.evaluate(analysis)
+        decision = self.decision_engine.evaluate(analysis)
+
+        if (
+            matched_policy
+            and matched_policy.get("action") == "ALLOW"
+            and decision.risk_score < 70
+        ):
+            # A policy allow-list can suppress lower-level warnings but cannot
+            # permit a prompt the core governance classifier rates as high risk.
+            decision.decision = Decision.ALLOW
+            decision.selected_model = ModelProvider.GEMINI
+            policy_name = matched_policy.get("name", "Allow policy")
+            decision.reason = (
+                f"Allowed by policy '{policy_name}'. "
+                f"Classifier assessment: {decision.reason}"
+            )[:300]
+
+        return decision
+
+    @staticmethod
+    def _policy_decision(action, risk_score, reason, policy):
+        return GovernanceDecision(
+            risk_score=risk_score,
+            risk_level=(
+                RiskLevel.HIGH if action == "BLOCK"
+                else RiskLevel.MEDIUM
+            ),
+            decision=Decision(action),
+            selected_model=ModelProvider.OLLAMA,
+            categories=[policy.get("category", "Custom Policy")],
+            reason=reason,
+            confidence=1.0,
+            sanitized_prompt=None,
+        )
