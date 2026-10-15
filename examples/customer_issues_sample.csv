@@ -1,0 +1,5 @@
+customer_id,issue_id,issue,category,status,priority,product,created_at,resolution
+CUST-1001,TKT-2001,"Cannot reset password because reset email is not arriving",Account Access,Open,High,Web Portal,2026-10-10,
+CUST-1002,TKT-2002,"Payment succeeded but order confirmation was not received",Payments,In Progress,Medium,Checkout,2026-10-11,
+CUST-1003,TKT-2003,"Dashboard loads slowly when exporting monthly reports",Performance,Open,Low,Analytics Dashboard,2026-10-12,
+CUST-1004,TKT-2004,"Refund is not reflected after cancellation",Refunds,Resolved,Medium,Mobile App,2026-10-13,"Refund status synchronized"
