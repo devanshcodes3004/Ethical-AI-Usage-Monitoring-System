@@ -4,6 +4,8 @@ governance_service.py
 Evaluates sensitive-data restrictions and administrator policies before model-based risk analysis.
 """
 
+import re
+
 from governance.decision_engine import DecisionEngine
 from governance.governance_engine import GovernanceEngine
 from governance.schemas import Decision, ModelProvider, RiskLevel, GovernanceDecision
