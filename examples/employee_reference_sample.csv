@@ -1,0 +1,4 @@
+employee_id,department,role,team,skills,status
+EMP-001,Customer Support,Support Specialist,Support Tier 1,"ticket triage; account access",Active
+EMP-002,Engineering,Backend Engineer,Payments,"API troubleshooting; payments",Active
+EMP-003,Customer Support,Support Lead,Support Tier 2,"escalations; refunds",Active
