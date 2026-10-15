@@ -41,6 +41,53 @@ class CSVDataSafetyTests(unittest.TestCase):
             is_sensitive_data_request("Show me the customer password reset issue")
         )
 
+    def test_customer_problem_lookup_returns_only_active_minimal_fields(self):
+        class FakeCollection:
+            def find(self, query, projection):
+                return iter([
+                    {"data": {
+                        "customer_id": "CUST-1001",
+                        "issue_category": "Payment/Billing",
+                        "complaint": "Payment failed",
+                        "status": "Open",
+                        "phone": "+1-202-555-0101",
+                        "email": "person@example.com",
+                    }},
+                    {"data": {
+                        "customer_id": "CUST-1002",
+                        "issue_category": "Delivery",
+                        "complaint": "Package late",
+                        "status": "Resolved",
+                    }},
+                ])
+
+        service = CSVDataService.__new__(CSVDataService)
+        service.collection = FakeCollection()
+        results = service.get_customers_with_problems("Give me customer IDs facing problems")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["customer_id"], "CUST-1001")
+        self.assertEqual(results[0]["status"], "open")
+        self.assertNotIn("phone", results[0])
+        self.assertNotIn("email", results[0])
+        self.assertNotIn("complaint", results[0])
+
+    def test_customer_problem_lookup_can_filter_by_problem_type(self):
+        class FakeCollection:
+            def find(self, query, projection):
+                return iter([
+                    {"data": {"customer_id": "CUST-1", "issue_category": "Payment/Billing", "status": "Open"}},
+                    {"data": {"customer_id": "CUST-2", "issue_category": "Delivery", "status": "Pending"}},
+                ])
+
+        service = CSVDataService.__new__(CSVDataService)
+        service.collection = FakeCollection()
+        results = service.get_customers_with_problems(
+            "Give customer IDs with payment problems"
+        )
+
+        self.assertEqual([item["customer_id"] for item in results], ["CUST-1"])
+
     def test_free_text_problems_are_grouped_into_categories(self):
         self.assertEqual(
             CSVDataService._problem_bucket("My package delivery was late"),
