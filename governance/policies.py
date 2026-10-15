@@ -11,6 +11,7 @@ from typing import Any
 from database.db import MongoDB
 
 COLLECTION_NAME = "governance_policies"
+SETTINGS_COLLECTION = "governance_policy_settings"
 
 DEFAULT_POLICIES = [
     {
@@ -27,7 +28,7 @@ DEFAULT_POLICIES = [
         "category": "Sensitive Data",
         "action": "WARN",
         "enabled": True,
-        "description": "Warn about common sensitive-data indicators and review before processing.",
+        "description": "Warn about requests mentioning common sensitive-data indicators.",
         "keywords": ["api key", "password", "credit card", "social security number"],
         "created_at": None,
     },
@@ -36,22 +37,30 @@ DEFAULT_POLICIES = [
 
 class PolicyRepository:
     def __init__(self):
-        self.collection = MongoDB().get_database()[COLLECTION_NAME]
+        database = MongoDB().get_database()
+        self.collection = database[COLLECTION_NAME]
+        self.settings = database[SETTINGS_COLLECTION]
         self.collection.create_index("name", unique=True)
 
     def list_policies(self):
-        policies = list(self.collection.find({}, {"_id": 0}).sort("created_at", 1))
-        if not policies:
-            now = datetime.now(timezone.utc).isoformat()
-            for policy in DEFAULT_POLICIES:
-                item = {**policy, "created_at": now}
-                self.collection.update_one(
-                    {"name": item["name"]},
-                    {"$setOnInsert": item},
-                    upsert=True,
-                )
-            policies = list(self.collection.find({}, {"_id": 0}).sort("created_at", 1))
-        return policies
+        # Seed starter rules only once; deleting all policies must remain possible.
+        marker = self.settings.find_one({"_id": "starter_policies_seeded"})
+        if marker is None:
+            if self.collection.count_documents({}) == 0:
+                now = datetime.now(timezone.utc).isoformat()
+                for policy in DEFAULT_POLICIES:
+                    item = {**policy, "created_at": now}
+                    self.collection.update_one(
+                        {"name": item["name"]},
+                        {"$setOnInsert": item},
+                        upsert=True,
+                    )
+            self.settings.update_one(
+                {"_id": "starter_policies_seeded"},
+                {"$setOnInsert": {"seeded_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True,
+            )
+        return list(self.collection.find({}, {"_id": 0}).sort("created_at", 1))
 
     def save_policy(self, policy: dict[str, Any]):
         policy["created_at"] = policy.get("created_at") or datetime.now(timezone.utc).isoformat()
