@@ -88,7 +88,7 @@ def is_sensitive_data_request(prompt):
         return False
 
     direct_disclosure = re.search(
-        r"\b(show|tell me|give me|reveal|display|list|retrieve|export|share|print|send me|what is|what's|which is|read|fetch)\b.{0,120}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|bank[\s_-]*accounts?|ssns?|aadhaar|aadhar|passport numbers?)\b",
+        r"\b(show|tell me|give me|reveal|display|list|retrieve|export|share|print|send me|what is|what are|what's|which is|which are|read|fetch)\b.{0,120}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|bank[\s_-]*accounts?|ssns?|aadhaar|aadhar|passport numbers?)\b",
         text,
     )
     support_topic = re.search(
@@ -104,7 +104,9 @@ def is_sensitive_data_request(prompt):
             r"\b(show|give|reveal|display|list|retrieve|export|share|send me)\b.{0,100}\b(password|passcode|credential)\b",
             text,
         )
-        if safe_reset_question and not explicit_retrieval:
+        if safe_reset_question and not re.search(
+            r"\\b(password|passcode|credential)\\s+(for|of|belonging to)\\b", text
+        ):
             return False
         return True
     # Asking about the frequency or causes of password-reset issues is safe.
