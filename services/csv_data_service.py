@@ -18,10 +18,10 @@ MAX_CONTEXT_RECORDS = 5
 SENSITIVE_COLUMN_PATTERNS = (
     r"password", r"passwd", r"passcode", r"passphrase", r"credential", r"\bpwd\b",
     r"secret", r"api.?key", r"access.?token", r"refresh.?token",
-    r"auth.?token", r"private.?key", r"\botp\b", r"\bpin\b",
+    r"auth.?token", r"private.?key", r"(^|_)otp(_|$)", r"(^|_)pin(_|$)",
     r"cvv", r"cvc", r"credit.?card", r"debit.?card", r"card.?number",
-    r"bank.?account", r"\biban\b", r"\bssn\b", r"aadhaar", r"aadhar",
-    r"\bpan\b", r"passport", r"date.?of.?birth", r"\bdob\b",
+    r"bank.?account", r"(^|_)iban(_|$)", r"(^|_)ssn(_|$)", r"aadhaar", r"aadhar",
+    r"(^|_)pan(_|$)", r"passport", r"date.?of.?birth", r"(^|_)dob(_|$)",
     r"phone", r"mobile", r"email", r"e.?mail", r"address",
     r"home.?location", r"personal.?number",
 )
