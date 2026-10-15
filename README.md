@@ -31,7 +31,7 @@ Two starter policies are inserted when the policy collection is empty. They can 
 Open **Business Data (CSV)** in Streamlit's multipage navigation to upload approved customer or employee CSV files. The app stores rows in MongoDB's `business_csv_records` collection and retrieves only a small keyword-matched subset for relevant chat questions.
 
 - Upload UTF-8 CSV files up to 5 MB and 10,000 rows.
-- Choose whether each file contains Customer or Employee records.
+- Choose whether each file contains Customer or Employee records. Fictional templates are available at `examples/customer_issues_sample.csv` and `examples/employee_reference_sample.csv`.
 - Credential, secret, payment, government-ID, and personal-contact columns (such as password, API key, phone, email, and address) are excluded during import.
 - Recognizable emails, phone numbers, payment-card-like values, and labeled secrets in free-text cells are redacted.
 - Ask questions such as "Summarize the open customer issues" or "What problems are mentioned in the customer records?" The model receives only a few matching, filtered rows.
