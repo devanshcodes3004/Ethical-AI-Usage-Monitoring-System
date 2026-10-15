@@ -4,6 +4,10 @@ import csv
 import io
 import re
 from datetime import datetime, timezone
+from functools import lru_cache
+
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 from database.db import MongoDB
 
@@ -12,6 +16,7 @@ COLLECTION_NAME = "business_csv_records"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 10_000
 MAX_CONTEXT_RECORDS = 5
+EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Never import columns whose names suggest credentials, secrets, payment data,
 # government identifiers, or personal contact/location information.
@@ -58,65 +63,54 @@ PII_VALUE_PATTERNS = [
 
 
 def is_sensitive_data_request(prompt):
-    """Block direct attempts to retrieve secrets without blocking safe support questions."""
-    text = prompt or ""
-    if not SENSITIVE_REQUEST_RE.search(text) or not REQUEST_INTENT_RE.search(text):
+    """Block requests for secrets or customer contact data, but allow support analytics."""
+    text = (prompt or "").casefold()
+    if not text.strip():
         return False
 
-    # Requests like "what is the customer's password?" or "show me the API key"
-    # are blocked. A question about a "password reset issue" is not a request
-    # to disclose the password itself.
-    direct_verb_request = re.search(
-        r"\b(show|tell|give|find|get|fetch|reveal|display|list|retrieve|"
-        r"provide|print|export|share|read|send me|do you know)\b"
-        r".{0,100}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|"
-        r"api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|"
-        r"private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|"
-        r"bank[\s_-]*accounts?|social security numbers?|ssns?|aadhaar|aadhar|"
-        r"passport numbers?)\b",
+    contact_terms = re.search(
+        r"\b(phone|mobile|cell(?:ular)?|telephone|email|e-mail|contact details?|home address|street address)\b",
         text,
-        re.IGNORECASE,
     )
-    direct_question = re.search(
-        r"\b(what(?:'s| is)|which)\s+(?:the\s+)?(?:[\w'-]+\s+){0,2}"
-        r"(password|passcode|passphrase|credential|secret|api[\s_-]*key|"
-        r"access[\s_-]*token|refresh[\s_-]*token|private[\s_-]*key|otp|"
-        r"cvv|cvc|credit[\s_-]*card|bank[\s_-]*account|ssn|aadhaar|aadhar|"
-        r"passport number)\b(?!\s*(?:reset|recovery|change|policy|security|issue|error))",
+    disclosure_intent = re.search(
+        r"\b(show|tell|give|find|get|fetch|reveal|display|list|retrieve|provide|print|export|share|read|return|send|what|which|who|all|every|each)\b",
         text,
-        re.IGNORECASE,
+    )
+    customer_scope = re.search(r"\b(customer|customers|client|clients|user|users)\b", text)
+    if contact_terms and disclosure_intent and customer_scope:
+        return True
+
+    secret_terms = re.search(
+        r"\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|bank[\s_-]*accounts?|social security numbers?|ssns?|aadhaar|aadhar|passport numbers?)\b",
+        text,
+    )
+    if not secret_terms:
+        return False
+
+    direct_disclosure = re.search(
+        r"\b(show|tell me|give me|reveal|display|list|retrieve|export|share|print|send me|what is|what's|which is|read|fetch)\b.{0,120}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|bank[\s_-]*accounts?|ssns?|aadhaar|aadhar|passport numbers?)\b",
+        text,
     )
     support_topic = re.search(
-        r"\b(password|passcode|credential)\s+"
-        r"(reset|recovery|forgot|change|policy|security|issue|error)\b",
+        r"\b(reset|recovery|forgot|change|policy|security|issue|issues|error|problem|problems|complaint|complaints|how many|count|trend|trends|frequency|frequent|common)\b",
         text,
-        re.IGNORECASE,
     )
-    explicit_secret_action = re.search(
-        r"\b(show|give|reveal|display|list|retrieve|export|share|send me)\b"
-        r".{0,100}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|"
-        r"api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?)\b",
-        text,
-        re.IGNORECASE,
-    )
-    other_secret = re.search(
-        r"\b(credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|"
-        r"refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|"
-        r"credit[\s_-]*cards?|bank[\s_-]*accounts?|ssn|aadhaar|aadhar|"
-        r"passport numbers?)\b",
-        text,
-        re.IGNORECASE,
-    )
-    password_value_target = re.search(
-        r"\b(password|passcode|passphrase)\s+(for|of|belonging to)\b",
-        text,
-        re.IGNORECASE,
-    )
-    if support_topic and not direct_question and not other_secret and not password_value_target:
+    if direct_disclosure:
+        safe_reset_question = re.search(
+            r"\b(password|passcode|credential)\s+(reset|recovery|issue|problem|error)\b",
+            text,
+        )
+        explicit_retrieval = re.search(
+            r"\b(show|give|reveal|display|list|retrieve|export|share|send me)\b.{0,100}\b(password|passcode|credential)\b",
+            text,
+        )
+        if safe_reset_question and not explicit_retrieval:
+            return False
+        return True
+    # Asking about the frequency or causes of password-reset issues is safe.
+    if support_topic and re.search(r"\b(password|passcode|credential)\s+(reset|recovery|issue|problem|error)\b", text):
         return False
-
-    return bool(direct_verb_request or direct_question)
-
+    return False
 
 class CSVDataService:
     """CSV upload and keyword retrieval backed by MongoDB."""
@@ -188,6 +182,7 @@ class CSVDataService:
                 "source_file": (source_file or "uploaded.csv")[:200],
                 "row_number": row_number,
                 "data": safe_data,
+                "embedding": self._embed_text(self._record_text(safe_data)),
                 "imported_at": datetime.now(timezone.utc).isoformat(),
             })
 
@@ -246,6 +241,26 @@ class CSVDataService:
         return bool(mentions_data and asks_for_data)
 
     @staticmethod
+    @lru_cache(maxsize=1)
+    def _embedding_model():
+        return SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+    @staticmethod
+    def _record_text(data):
+        return " ".join(
+            f"{key.replace('_', ' ')}: {value}"
+            for key, value in data.items()
+            if value and not SENSITIVE_COLUMN_RE.search(key)
+        )
+
+    @staticmethod
+    def _embed_text(text):
+        vector = CSVDataService._embedding_model().encode(
+            text, normalize_embeddings=True, convert_to_numpy=True
+        )
+        return vector.astype(float).tolist()
+
+    @staticmethod
     def _tokens(text):
         return {
             token for token in re.findall(r"[a-z0-9]{3,}", (text or "").casefold())
@@ -264,12 +279,9 @@ class CSVDataService:
         return text[:1000]
 
     def retrieve_context(self, prompt, record_types=None):
-        """Return a few relevant records; never include dropped secret/contact columns."""
+        """Retrieve relevant safe CSV rows using sentence-embedding similarity."""
         prompt_text = (prompt or "").casefold()
-        query_tokens = self._tokens(prompt)
-        if not query_tokens and not any(
-            term in prompt_text for term in ("customer", "employee", "issue", "problem")
-        ):
+        if not prompt_text.strip():
             return ""
 
         if record_types is None:
@@ -280,69 +292,81 @@ class CSVDataService:
             else:
                 record_types = ("Customer", "Employee")
 
-        wants_issues = any(
-            term in prompt_text
-            for term in ("problem", "issue", "complaint", "ticket", "support", "case")
-        )
-
+        query_vector = np.asarray(self._embed_text(prompt), dtype=float)
         candidates = self.collection.find(
             {"record_type": {"$in": list(record_types)}},
-            {"_id": 0, "record_type": 1, "source_file": 1, "row_number": 1, "data": 1},
-        ).limit(2000)
+            {"_id": 1, "record_type": 1, "source_file": 1, "row_number": 1, "data": 1, "embedding": 1},
+        ).limit(5000)
 
         ranked = []
-        issue_field_re = re.compile(
-            r"(issue|problem|complaint|ticket|support|case|description|status|priority|resolution)",
-            re.IGNORECASE,
-        )
         excluded_context_key_re = re.compile(
-            r"(^|_)(name|email|phone|mobile|address|location|employee_id|"
-            r"record_id|id|dob|birth)(_|$)",
+            r"(^|_)(name|email|phone|mobile|telephone|address|location|employee_id|record_id|id|dob|birth|password|passwd|credential|secret|token|api_key)(_|$)",
             re.IGNORECASE,
         )
-
+        safe_identifier_keys = {"customer_id", "ticket_id", "case_id", "order_id", "issue_id"}
         for item in candidates:
             data = item.get("data", {})
-            searchable = " ".join(str(v) for v in data.values())
-            row_tokens = self._tokens(searchable)
-            overlap = query_tokens & row_tokens
-            issue_fields = {
-                key: value for key, value in data.items()
-                if issue_field_re.search(key) and value
-            }
-            # General requests for customer problems should retrieve rows that
-            # have issue/complaint fields even when the prompt has no exact term match.
-            issue_bonus = 2 if wants_issues and issue_fields else 0
-            if not overlap and not issue_bonus:
+            if not isinstance(data, dict):
                 continue
-
-            safe_identifier_keys = {"customer_id", "ticket_id", "case_id", "order_id", "issue_id"}
+            searchable_text = self._record_text(data)
+            if not searchable_text:
+                continue
+            embedding = item.get("embedding")
+            if not isinstance(embedding, list) or len(embedding) != len(query_vector):
+                embedding = self._embed_text(searchable_text)
+                self.collection.update_one({"_id": item["_id"]}, {"$set": {"embedding": embedding}})
+            vector = np.asarray(embedding, dtype=float)
+            denom = float(np.linalg.norm(vector) * np.linalg.norm(query_vector))
+            similarity = float(np.dot(vector, query_vector) / denom) if denom else 0.0
             safe_fields = {
                 key: self._redact_values(value)
                 for key, value in data.items()
-                if (
-                    key in safe_identifier_keys
-                    or not excluded_context_key_re.search(key)
-                ) and value
+                if (key in safe_identifier_keys or not excluded_context_key_re.search(key)) and value
             }
-            if safe_fields:
-                ranked.append((
-                    len(overlap) + issue_bonus,
-                    item.get("record_type", "Business"),
-                    item.get("source_file", ""),
-                    item.get("row_number", 0),
-                    safe_fields,
-                ))
+            if safe_fields and similarity >= 0.18:
+                ranked.append((similarity, item.get("record_type", "Business"), item.get("source_file", ""), item.get("row_number", 0), safe_fields))
 
         ranked.sort(key=lambda row: row[0], reverse=True)
         selected = ranked[:MAX_CONTEXT_RECORDS]
         if not selected:
             return ""
-
         lines = []
-        for _, record_type, source, row_number, fields in selected:
+        for score, record_type, source, row_number, fields in selected:
             safe_fields = "; ".join(f"{key}: {value}" for key, value in fields.items())
-            lines.append(
-                f"- Type: {record_type}; source: {source}; row: {row_number}; {safe_fields}"
-            )
+            lines.append(f"- Type: {record_type}; relevance: {score:.2f}; source: {source}; row: {row_number}; {safe_fields}")
         return "\n".join(lines)
+
+    def get_top_customer_problems(self, limit=2):
+        """Count common customer problems using issue/category fields only."""
+        limit = max(1, min(int(limit), 10))
+        documents = self.collection.find({"record_type": "Customer"}, {"_id": 0, "data": 1})
+        counts, labels = {}, {}
+        preferred_fields = (
+            "problem_category", "issue_category", "complaint_category", "problem_type",
+            "issue_type", "complaint_type", "category", "type", "problem", "issue",
+            "complaint", "ticket_subject", "subject", "description", "issue_description",
+            "customer_problem",
+        )
+        for document in documents:
+            data = document.get("data", {})
+            if not isinstance(data, dict):
+                continue
+            normalized = {
+                re.sub(r"[^a-z0-9]+", "_", str(key).casefold()).strip("_"): value
+                for key, value in data.items()
+            }
+            chosen = ""
+            for field in preferred_fields:
+                value = normalized.get(field)
+                if value and str(value).strip():
+                    chosen = str(value).strip()
+                    break
+            if not chosen:
+                continue
+            label = self._redact_values(chosen)[:180]
+            key = re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip()
+            if key:
+                counts[key] = counts.get(key, 0) + 1
+                labels.setdefault(key, label)
+        ranked = sorted(counts, key=lambda key: (-counts[key], labels[key].casefold()))
+        return [{"problem": labels[key], "count": counts[key]} for key in ranked[:limit]]
