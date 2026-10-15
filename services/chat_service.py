@@ -108,14 +108,14 @@ class ChatService:
         data_service = CSVDataService()
         business_data_question = data_service.is_business_data_question(prompt)
         asks_customer_problem_ids = bool(
-            re.search(r"\\b(customer|client)\\b", prompt or "", re.IGNORECASE)
-            and re.search(r"\\b(id|ids|identifier|identifiers)\\b", prompt or "", re.IGNORECASE)
-            and re.search(r"\\b(problem|problems|issue|issues|complaint|complaints|facing|affected|open|pending)\\b", prompt or "", re.IGNORECASE)
+            re.search(r"\b(customer|client)\b", prompt or "", re.IGNORECASE)
+            and re.search(r"\b(id|ids|identifier|identifiers)\b", prompt or "", re.IGNORECASE)
+            and re.search(r"\b(problem|problems|issue|issues|complaint|complaints|facing|affected|open|pending)\b", prompt or "", re.IGNORECASE)
         )
         asks_top_customer_problems = bool(
             re.search(
-                r"\\b(top|most common|most frequent|frequent)\\b.{0,60}\\b(customer|client)?\\s*(problems?|issues?|complaints?)\\b|"
-                r"\\b(customer|client)\\s+(problems?|issues?|complaints?)\\b",
+                r"\b(top|most common|most frequent|frequent)\b.{0,60}\b(customer|client)?\s*(problems?|issues?|complaints?)\b|"
+                r"\b(customer|client)\s+(problems?|issues?|complaints?)\b",
                 prompt or "",
                 re.IGNORECASE,
             )
@@ -126,12 +126,12 @@ class ChatService:
         if asks_customer_problem_ids:
             affected_customers = data_service.get_customers_with_problems(prompt, limit=10)
             if affected_customers:
-                response = "**Customers with active problem records (up to 10)**\\n\\n" + "\\n".join(
+                response = "**Customers with active problem records (up to 10)**\n\n" + "\n".join(
                     f"{index}. **Customer ID:** {item['customer_id']} — "
                     f"**Problem:** {item['problem']} — **Status:** {item['status']}"
                     for index, item in enumerate(affected_customers, start=1)
                 )
-                response += "\\n\\nOnly the minimum information needed to investigate is shown. Customer names, phone numbers, email addresses, and credentials are not returned."
+                response += "\n\nOnly the minimum information needed to investigate is shown. Customer names, phone numbers, email addresses, and credentials are not returned."
             else:
                 response = (
                     "I couldn't find customer records with an identifiable active problem in the imported CSV. "
