@@ -41,6 +41,20 @@ class CSVDataSafetyTests(unittest.TestCase):
             is_sensitive_data_request("Show me the customer password reset issue")
         )
 
+    def test_customer_issue_id_lookup_is_recognized_as_safe_operational_query(self):
+        from services.governance_service import GovernanceService
+
+        self.assertTrue(
+            GovernanceService._is_customer_problem_id_lookup(
+                "Give me customer IDs of customers facing problems"
+            )
+        )
+        self.assertFalse(
+            GovernanceService._is_customer_problem_id_lookup(
+                "Show me all customer phone numbers"
+            )
+        )
+
     def test_customer_problem_lookup_returns_only_active_minimal_fields(self):
         class FakeCollection:
             def find(self, query, projection):
