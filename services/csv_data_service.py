@@ -105,7 +105,7 @@ def is_sensitive_data_request(prompt):
             text,
         )
         if safe_reset_question and not re.search(
-            r"\\b(password|passcode|credential)\\s+(for|of|belonging to)\\b", text
+            r"\b(password|passcode|credential)\s+(for|of|belonging to)\b", text
         ):
             return False
         return True
