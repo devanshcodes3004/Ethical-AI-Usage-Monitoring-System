@@ -338,16 +338,37 @@ class CSVDataService:
             lines.append(f"- Type: {record_type}; relevance: {score:.2f}; source: {source}; row: {row_number}; {safe_fields}")
         return "\n".join(lines)
 
+    @staticmethod
+    def _problem_bucket(label):
+        """Group free-text complaint descriptions into useful recurring categories."""
+        text = (label or "").casefold()
+        patterns = (
+            ("Delivery or shipping delays", r"\b(delivery|deliver|shipping|shipment|late|delayed|courier|tracking)\b"),
+            ("Payment or billing problems", r"\b(payment|paid|billing|bill|charged|charge|transaction|upi|card declined)\b"),
+            ("Refund or return problems", r"\b(refund|return|replacement|exchange|reimburse)\b"),
+            ("Login or account access", r"\b(login|log in|sign.?in|password|account access|locked out|otp)\b"),
+            ("Product quality or damaged item", r"\b(damaged|broken|defect|defective|quality|faulty|wrong item)\b"),
+            ("Order cancellation or order status", r"\b(cancel|cancellation|order status|order missing|not received)\b"),
+            ("App or website problems", r"\b(app|website|web site|crash|bug|loading|error page|technical issue)\b"),
+            ("Customer support problems", r"\b(customer service|support|agent|representative|no response|not responding)\b"),
+        )
+        for category, pattern in patterns:
+            if re.search(pattern, text):
+                return category
+        return re.sub(r"\s+", " ", CSVDataService._redact_values(label).strip())[:180]
+
     def get_top_customer_problems(self, limit=2):
-        """Count common customer problems using issue/category fields only."""
+        """Count recurring customer problem categories without exposing personal data."""
         limit = max(1, min(int(limit), 10))
         documents = self.collection.find({"record_type": "Customer"}, {"_id": 0, "data": 1})
         counts, labels = {}, {}
-        preferred_fields = (
+        category_fields = (
             "problem_category", "issue_category", "complaint_category", "problem_type",
-            "issue_type", "complaint_type", "category", "type", "problem", "issue",
-            "complaint", "ticket_subject", "subject", "description", "issue_description",
-            "customer_problem",
+            "issue_type", "complaint_type", "category", "type",
+        )
+        text_fields = (
+            "problem", "issue", "complaint", "ticket_subject", "subject",
+            "description", "issue_description", "customer_problem",
         )
         for document in documents:
             data = document.get("data", {})
@@ -357,15 +378,22 @@ class CSVDataService:
                 re.sub(r"[^a-z0-9]+", "_", str(key).casefold()).strip("_"): value
                 for key, value in data.items()
             }
-            chosen = ""
-            for field in preferred_fields:
-                value = normalized.get(field)
-                if value and str(value).strip():
-                    chosen = str(value).strip()
-                    break
-            if not chosen:
-                continue
-            label = self._redact_values(chosen)[:180]
+            raw_label = next(
+                (str(normalized[field]).strip() for field in category_fields
+                 if normalized.get(field) and str(normalized[field]).strip()),
+                "",
+            )
+            if raw_label:
+                label = self._redact_values(raw_label)[:180]
+            else:
+                raw_label = next(
+                    (str(normalized[field]).strip() for field in text_fields
+                     if normalized.get(field) and str(normalized[field]).strip()),
+                    "",
+                )
+                if not raw_label:
+                    continue
+                label = self._problem_bucket(raw_label)
             key = re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip()
             if key:
                 counts[key] = counts.get(key, 0) + 1
