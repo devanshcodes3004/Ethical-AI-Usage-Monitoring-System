@@ -108,8 +108,8 @@ class ChatService:
         business_data_question = data_service.is_business_data_question(prompt)
         asks_top_customer_problems = bool(
             re.search(
-                r"\\b(top|most common|most frequent|frequent)\\b.{0,60}\\b(customer|client)?\\s*(problems?|issues?|complaints?)\\b|"
-                r"\\b(customer|client)\\s+(problems?|issues?|complaints?)\\b",
+                r"\b(top|most common|most frequent|frequent)\b.{0,60}\b(customer|client)?\s*(problems?|issues?|complaints?)\b|"
+                r"\b(customer|client)\s+(problems?|issues?|complaints?)\b",
                 prompt or "",
                 re.IGNORECASE,
             )
@@ -118,7 +118,7 @@ class ChatService:
         if asks_top_customer_problems:
             top_problems = data_service.get_top_customer_problems(limit=2)
             if top_problems:
-                response = "**Top 2 customer problems in the uploaded data**\\n\\n" + "\\n".join(
+                response = "**Top 2 customer problems in the uploaded data**\n\n" + "\n".join(
                     f"{index}. **{item['problem']}** — {item['count']} record(s)"
                     for index, item in enumerate(top_problems, start=1)
                 )
