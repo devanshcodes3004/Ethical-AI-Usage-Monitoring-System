@@ -21,6 +21,11 @@ class CSVDataSafetyTests(unittest.TestCase):
             )
         )
 
+    def test_show_password_reset_issue_is_not_blocked(self):
+        self.assertFalse(
+            is_sensitive_data_request("Show me the customer password reset issue")
+        )
+
     def test_labeled_secret_is_redacted_from_free_text(self):
         safe = CSVDataService._safe_cell("Troubleshooting note: password=supersecret123")
         self.assertNotIn("supersecret123", safe)
