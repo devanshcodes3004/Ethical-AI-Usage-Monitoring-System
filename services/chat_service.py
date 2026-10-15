@@ -106,8 +106,28 @@ class ChatService:
         data_service = CSVDataService()
         data_context = data_service.retrieve_context(prompt)
         business_data_question = data_service.is_business_data_question(prompt)
+        asks_top_customer_problems = bool(
+            re.search(
+                r"\\b(top|most common|most frequent|frequent)\\b.{0,60}\\b(customer|client)?\\s*(problems?|issues?|complaints?)\\b|"
+                r"\\b(customer|client)\\s+(problems?|issues?|complaints?)\\b",
+                prompt or "",
+                re.IGNORECASE,
+            )
+        )
 
-        if business_data_question and not data_context:
+        if asks_top_customer_problems:
+            top_problems = data_service.get_top_customer_problems(limit=2)
+            if top_problems:
+                response = "**Top 2 customer problems in the uploaded data**\\n\\n" + "\\n".join(
+                    f"{index}. **{item['problem']}** — {item['count']} record(s)"
+                    for index, item in enumerate(top_problems, start=1)
+                )
+            else:
+                response = (
+                    "I couldn't identify customer problem categories in the approved CSV data. "
+                    "Please include a problem, issue, complaint, category, or ticket-subject column."
+                )
+        elif business_data_question and not data_context:
             # Avoid letting the model guess about records that were not found.
             response = (
                 "I couldn't find matching information in the approved CSV data "
