@@ -16,7 +16,7 @@ MAX_CONTEXT_RECORDS = 5
 # Never import columns whose names suggest credentials, secrets, payment data,
 # government identifiers, or personal contact/location information.
 SENSITIVE_COLUMN_PATTERNS = (
-    r"password", r"passwd", r"passcode", r"passphrase", r"credential",
+    r"password", r"passwd", r"passcode", r"passphrase", r"credential", r"\bpwd\b",
     r"secret", r"api.?key", r"access.?token", r"refresh.?token",
     r"auth.?token", r"private.?key", r"\botp\b", r"\bpin\b",
     r"cvv", r"cvc", r"credit.?card", r"debit.?card", r"card.?number",
@@ -82,7 +82,8 @@ class CSVDataService:
             return ""
         if text.startswith(("=", "+", "-", "@")):
             text = "'" + text
-        return text[:2000]
+        # Redact recognizable PII and labeled secrets in free-text cells too.
+        return CSVDataService._redact_values(text)[:2000]
 
     def import_csv(self, file_bytes, source_file, record_type):
         if record_type not in {"Customer", "Employee"}:
@@ -241,19 +242,22 @@ class CSVDataService:
             }
             # General requests for customer problems should retrieve rows that
             # have issue/complaint fields even when the prompt has no exact term match.
-            if wants_issues and issue_fields:
-                overlap = overlap or {"issue_query"}
-            if not overlap:
+            issue_bonus = 2 if wants_issues and issue_fields else 0
+            if not overlap and not issue_bonus:
                 continue
 
+            safe_identifier_keys = {"customer_id", "ticket_id", "case_id", "order_id", "issue_id"}
             safe_fields = {
                 key: self._redact_values(value)
                 for key, value in data.items()
-                if not excluded_context_key_re.search(key) and value
+                if (
+                    key in safe_identifier_keys
+                    or not excluded_context_key_re.search(key)
+                ) and value
             }
             if safe_fields:
                 ranked.append((
-                    len(overlap),
+                    len(overlap) + issue_bonus,
                     item.get("record_type", "Business"),
                     item.get("source_file", ""),
                     item.get("row_number", 0),
