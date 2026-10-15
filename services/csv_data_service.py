@@ -216,6 +216,23 @@ class CSVDataService:
         return result.deleted_count
 
     @staticmethod
+    def is_business_data_question(prompt):
+        """Recognize questions that should be answered from imported records."""
+        text = (prompt or "").casefold()
+        mentions_data = re.search(
+            r"\b(customer|customers|client|clients|employee|employees|staff|"
+            r"ticket|tickets|case|cases|complaint|complaints|record|records)\b",
+            text,
+        )
+        asks_for_data = re.search(
+            r"\b(show|list|summari[sz]e|what|which|how many|find|tell me about|"
+            r"status|open|pending|resolved|data|records|issue|issues|problem|"
+            r"problems|complaint|complaints|ticket|tickets|case|cases)\b",
+            text,
+        )
+        return bool(mentions_data and asks_for_data)
+
+    @staticmethod
     def _tokens(text):
         return {
             token for token in re.findall(r"[a-z0-9]{3,}", (text or "").casefold())
