@@ -29,6 +29,18 @@ class CSVDataSafetyTests(unittest.TestCase):
             is_sensitive_data_request("What are all customer passwords?")
         )
 
+    def test_explicitly_excluded_sensitive_fields_do_not_trigger_block(self):
+        prompt = (
+            "Show the customer IDs of customers facing unresolved problems in the uploaded CSV. "
+            "Return only customer ID, problem category, and status. "
+            "Do not include names, phone numbers, email addresses, or passwords."
+        )
+        self.assertFalse(is_sensitive_data_request(prompt))
+
+    def test_explicit_password_retrieval_still_blocks_even_with_later_exclusion(self):
+        prompt = "Show me all customer passwords. Do not include passwords in the summary."
+        self.assertTrue(is_sensitive_data_request(prompt))
+
     def test_password_reset_support_question_is_not_blocked(self):
         self.assertFalse(
             is_sensitive_data_request(
