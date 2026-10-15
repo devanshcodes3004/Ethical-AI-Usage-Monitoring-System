@@ -26,14 +26,16 @@ Two starter policies are inserted when the policy collection is empty. They can 
 
 **Important limitation:** Policy matching is case-insensitive substring matching. It is intended as a configurable, inspectable first layer, not a complete semantic safety classifier. Phrase choices can create false positives or miss paraphrases; test and tune policies before relying on them for production enforcement.
 
-## Employee and customer records
+## CSV business data for chat
 
-Open **Employee & Customer Records** in Streamlit's multipage navigation to add, view, and delete employee and customer records.
+Open **Business Data (CSV)** in Streamlit's multipage navigation to upload approved customer or employee CSV files. The app stores rows in MongoDB's `business_csv_records` collection and retrieves only a small keyword-matched subset for relevant chat questions.
 
-- Employee fields: employee ID, name, age, phone, optional email, and optional department.
-- Customer fields: customer ID, name, age, phone, optional email, and optional address.
-- Records are stored separately in MongoDB collections: `employee_records` and `customer_records`.
-- Record IDs must be unique within each record type.
-- Password entry is optional. If provided, the app stores a salted PBKDF2 hash rather than the raw password, and the records view does not return or display the hash.
+- Upload UTF-8 CSV files up to 5 MB and 10,000 rows.
+- Choose whether each file contains Customer or Employee records.
+- Credential, secret, payment, government-ID, and personal-contact columns (such as password, API key, phone, email, and address) are excluded during import.
+- Recognizable emails, phone numbers, payment-card-like values, and labeled secrets in free-text cells are redacted.
+- Ask questions such as "Summarize the open customer issues" or "What problems are mentioned in the customer records?" The model receives only a few matching, filtered rows.
+- Direct requests to retrieve passwords, credentials, API keys, tokens, OTPs, or similar secrets are blocked before CSV retrieval and before an LLM call.
+- Re-uploading the same filename for the same data type replaces that file's imported rows. You can remove an imported source from the page.
 
-**Privacy and deployment warning:** This is a demonstration data-entry feature, not a complete identity or access-management system. The current app does not enforce roles or per-record access control. Use fictional/test records only until authentication, authorization, retention/deletion rules, and an appropriate privacy notice are implemented. Never reuse real account passwords in this form.
+**Limitations and safety:** Retrieval currently uses keyword overlap, not semantic/vector search, so phrasing and CSV column names affect what it finds. Secret detection is defense-in-depth, not a guarantee that arbitrary sensitive text can always be recognized. Treat CSVs as untrusted, review them before upload, and use test data first. This demo does not yet authenticate employees or enforce role-based/row-level permissions; anyone who can access the app may be able to query the approved imported business records. Do not upload real credentials, unnecessary personal data, or highly sensitive records.
