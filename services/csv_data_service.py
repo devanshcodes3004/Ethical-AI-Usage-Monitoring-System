@@ -62,9 +62,30 @@ PII_VALUE_PATTERNS = [
 ]
 
 
+def _remove_explicit_exclusion_clauses(prompt):
+    """Ignore clearly negated clauses when deciding whether data disclosure is requested.
+
+    Example: "Show issue IDs. Do not include passwords or phone numbers."
+    The first clause remains subject to policy checks; the exclusion clause must
+    not itself trigger a sensitive-data block.
+    """
+    text = (prompt or "").casefold()
+    clauses = re.split(
+        r"(?<=[.!?;])\\s+|,\\s*(?=(?:but\\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\\b)",
+        text,
+    )
+    return " ".join(
+        clause for clause in clauses
+        if not re.match(
+            r"^\\s*(?:(?:but|and)\\s+)?(?:do not|don't|dont|never|exclude|excluding|without)\\b",
+            clause,
+        )
+    )
+
+
 def is_sensitive_data_request(prompt):
     """Block requests for secrets or customer contact data, but allow support analytics."""
-    text = (prompt or "").casefold()
+    text = _remove_explicit_exclusion_clauses(prompt)
     if not text.strip():
         return False
 
