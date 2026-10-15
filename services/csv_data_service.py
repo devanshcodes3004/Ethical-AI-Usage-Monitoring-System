@@ -77,7 +77,7 @@ def is_sensitive_data_request(prompt):
         text,
     )
     customer_scope = re.search(r"\b(customer|customers|client|clients|user|users)\b", text)
-    broad_contact_scope = re.search(r"\\b(all|every|each)\\b", text)
+    broad_contact_scope = re.search(r"\b(all|every|each)\b", text)
     if contact_terms and disclosure_intent and (customer_scope or broad_contact_scope):
         return True
 
