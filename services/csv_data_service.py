@@ -86,12 +86,20 @@ def is_sensitive_data_request(prompt):
         text,
         re.IGNORECASE,
     )
-    if re.search(
+    support_topic = re.search(
         r"\b(password|passcode|credential)\s+"
         r"(reset|recovery|forgot|change|policy|security|issue|error)\b",
         text,
         re.IGNORECASE,
-    ) and not direct_verb_request:
+    )
+    explicit_secret_action = re.search(
+        r"\b(show|give|reveal|display|list|retrieve|export|share|send me)\b"
+        r".{0,100}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|"
+        r"api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if support_topic and not explicit_secret_action and not direct_question:
         return False
 
     return bool(direct_verb_request or direct_question)
