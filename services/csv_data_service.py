@@ -58,11 +58,43 @@ PII_VALUE_PATTERNS = [
 
 
 def is_sensitive_data_request(prompt):
-    """Conservatively block direct requests to retrieve credential-like data."""
-    return bool(
-        SENSITIVE_REQUEST_RE.search(prompt or "")
-        and REQUEST_INTENT_RE.search(prompt or "")
+    """Block direct attempts to retrieve secrets without blocking safe support questions."""
+    text = prompt or ""
+    if not SENSITIVE_REQUEST_RE.search(text) or not REQUEST_INTENT_RE.search(text):
+        return False
+
+    # Requests like "what is the customer's password?" or "show me the API key"
+    # are blocked. A question about a "password reset issue" is not a request
+    # to disclose the password itself.
+    direct_verb_request = re.search(
+        r"\b(show|tell|give|find|get|fetch|reveal|display|list|retrieve|"
+        r"provide|print|export|share|read|send me|do you know)\b"
+        r".{0,100}\b(passwords?|passcodes?|passphrases?|credentials?|secrets?|"
+        r"api[\s_-]*keys?|access[\s_-]*tokens?|refresh[\s_-]*tokens?|"
+        r"private[\s_-]*keys?|otps?|cvv|cvc|credit[\s_-]*cards?|"
+        r"bank[\s_-]*accounts?|social security numbers?|ssns?|aadhaar|aadhar|"
+        r"passport numbers?)\b",
+        text,
+        re.IGNORECASE,
     )
+    direct_question = re.search(
+        r"\b(what(?:'s| is)|which)\s+(?:the\s+)?(?:[\w'-]+\s+){0,2}"
+        r"(password|passcode|passphrase|credential|secret|api[\s_-]*key|"
+        r"access[\s_-]*token|refresh[\s_-]*token|private[\s_-]*key|otp|"
+        r"cvv|cvc|credit[\s_-]*card|bank[\s_-]*account|ssn|aadhaar|aadhar|"
+        r"passport number)\b(?!\s*(?:reset|recovery|change|policy|security|issue|error))",
+        text,
+        re.IGNORECASE,
+    )
+    if re.search(
+        r"\b(password|passcode|credential)\s+"
+        r"(reset|recovery|forgot|change|policy|security|issue|error)\b",
+        text,
+        re.IGNORECASE,
+    ) and not direct_verb_request:
+        return False
+
+    return bool(direct_verb_request or direct_question)
 
 
 class CSVDataService:
