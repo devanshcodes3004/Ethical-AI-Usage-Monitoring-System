@@ -20,7 +20,7 @@ A Streamlit-based AI governance gateway that evaluates prompts before routing th
 
 ## Governance policies
 
-Open **Policies** from Streamlit's multipage navigation to configure prompt rules. Each policy has a name, category, action (`BLOCK`, `WARN`, or `ALLOW`), description, enable/disable state, and match phrases (one phrase per line). Policies are stored in the MongoDB `governance_policies` collection and are evaluated before the existing model-based governance classifier. When multiple policies match, precedence is `BLOCK` > `WARN` > `ALLOW`.
+Open **Policies** from Streamlit's multipage navigation to configure prompt rules. Each policy has a name, category, action (`BLOCK`, `WARN`, or `ALLOW`), description, enable/disable state, and match phrases (one phrase per line). Policies are stored in the MongoDB `governance_policies` collection and are evaluated before the existing model-based governance classifier. When multiple policies match, precedence is `BLOCK` > `WARN` > `ALLOW`. An `ALLOW` rule can suppress lower-risk warnings, but it does not override a high-risk block from the core classifier.
 
 Two starter policies are inserted when the policy collection is empty. They can be edited by saving a policy with the same name or removed using the delete control.
 
