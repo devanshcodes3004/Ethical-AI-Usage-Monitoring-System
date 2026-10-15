@@ -185,12 +185,23 @@ class CSVDataService:
                 "source_file": (source_file or "uploaded.csv")[:200],
                 "row_number": row_number,
                 "data": safe_data,
-                "embedding": self._embed_text(self._record_text(safe_data)),
                 "imported_at": datetime.now(timezone.utc).isoformat(),
             })
 
         if not records:
             raise ValueError("No non-empty data rows were found.")
+
+        # Batch embeddings to avoid loading/running the encoder once per row.
+        texts = [self._record_text(record["data"]) for record in records]
+        vectors = self._embedding_model().encode(
+            texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            batch_size=64,
+            show_progress_bar=False,
+        )
+        for record, vector in zip(records, vectors):
+            record["embedding"] = vector.astype(float).tolist()
 
         source = (source_file or "uploaded.csv")[:200]
         # Re-uploading the same filename replaces that file's records only.
