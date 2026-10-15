@@ -369,6 +369,90 @@ class CSVDataService:
                 return category
         return re.sub(r"\s+", " ", CSVDataService._redact_values(label).strip())[:180]
 
+    def get_customers_with_problems(self, prompt="", limit=10):
+        """Return a small, minimized list of customer IDs with active issue records."""
+        limit = max(1, min(int(limit), 10))
+        documents = self.collection.find({"record_type": "Customer"}, {"_id": 0, "data": 1})
+        active_statuses = {
+            "open", "pending", "in progress", "in-progress", "escalated",
+            "unresolved", "waiting", "under review", "on hold",
+        }
+        closed_statuses = {"resolved", "closed", "complete", "completed", "fixed"}
+        category_fields = (
+            "problem_category", "issue_category", "complaint_category", "problem_type",
+            "issue_type", "complaint_type", "category", "type",
+        )
+        text_fields = (
+            "problem", "issue", "complaint", "ticket_subject", "subject",
+            "description", "issue_description", "customer_problem",
+        )
+        known_categories = {
+            "delivery or shipping delays", "payment or billing problems",
+            "refund or return problems", "login or account access",
+            "product quality or damaged item", "order cancellation or order status",
+            "app or website problems", "customer support problems",
+        }
+        query_bucket = self._problem_bucket(prompt)
+        filter_category = query_bucket.casefold() if query_bucket.casefold() in known_categories else None
+        matches = []
+        seen_ids = set()
+
+        for document in documents:
+            data = document.get("data", {})
+            if not isinstance(data, dict):
+                continue
+            normalized = {
+                re.sub(r"[^a-z0-9]+", "_", str(key).casefold()).strip("_"): value
+                for key, value in data.items()
+            }
+            customer_id = next(
+                (str(normalized[key]).strip() for key in ("customer_id", "customerid", "client_id", "clientid")
+                 if normalized.get(key) and str(normalized[key]).strip()),
+                "",
+            )
+            if not customer_id or customer_id in seen_ids:
+                continue
+
+            status = str(normalized.get("status", "")).strip().casefold()
+            if status in closed_statuses:
+                continue
+            if status and status not in active_statuses:
+                continue
+
+            raw_label = next(
+                (str(normalized[field]).strip() for field in category_fields
+                 if normalized.get(field) and str(normalized[field]).strip()),
+                "",
+            )
+            if raw_label:
+                problem = self._redact_values(raw_label)[:180]
+                problem_bucket = self._problem_bucket(raw_label)
+            else:
+                raw_label = next(
+                    (str(normalized[field]).strip() for field in text_fields
+                     if normalized.get(field) and str(normalized[field]).strip()),
+                    "",
+                )
+                if not raw_label:
+                    continue
+                problem_bucket = self._problem_bucket(raw_label)
+                problem = problem_bucket
+
+            if filter_category and problem_bucket.casefold() != filter_category:
+                continue
+
+            # Return only the minimum fields needed for follow-up.
+            matches.append({
+                "customer_id": customer_id[:100],
+                "problem": problem,
+                "status": status or "unspecified",
+            })
+            seen_ids.add(customer_id)
+            if len(matches) >= limit:
+                break
+
+        return matches
+
     def get_top_customer_problems(self, limit=2):
         """Count recurring customer problem categories without exposing personal data."""
         limit = max(1, min(int(limit), 10))
