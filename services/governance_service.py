@@ -81,10 +81,10 @@ class GovernanceService:
     @staticmethod
     def _is_customer_problem_id_lookup(prompt):
         text = (prompt or "").casefold()
-        has_customer = bool(re.search(r"\\b(customer|customers|client|clients)\\b", text))
-        has_identifier = bool(re.search(r"\\b(ids?|identifiers?)\\b", text))
+        has_customer = bool(re.search(r"\b(customer|customers|client|clients)\b", text))
+        has_identifier = bool(re.search(r"\b(ids?|identifiers?)\b", text))
         has_problem = bool(re.search(
-            r"\\b(problem|problems|issue|issues|complaint|complaints|facing|affected|open|pending)\\b",
+            r"\b(problem|problems|issue|issues|complaint|complaints|facing|affected|open|pending)\b",
             text,
         ))
         return has_customer and has_identifier and has_problem
