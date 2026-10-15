@@ -104,7 +104,6 @@ class ChatService:
         # Only a small set of matching, filtered records is added to the prompt.
         # Imported CSV rows are untrusted data, never instructions.
         data_service = CSVDataService()
-        data_context = data_service.retrieve_context(prompt)
         business_data_question = data_service.is_business_data_question(prompt)
         asks_top_customer_problems = bool(
             re.search(
@@ -114,6 +113,8 @@ class ChatService:
                 re.IGNORECASE,
             )
         )
+
+        data_context = "" if asks_top_customer_problems else data_service.retrieve_context(prompt)
 
         if asks_top_customer_problems:
             top_problems = data_service.get_top_customer_problems(limit=2)
