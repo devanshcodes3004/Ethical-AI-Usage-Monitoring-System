@@ -99,7 +99,20 @@ def is_sensitive_data_request(prompt):
         text,
         re.IGNORECASE,
     )
-    if support_topic and not explicit_secret_action and not direct_question:
+    other_secret = re.search(
+        r"\b(credentials?|secrets?|api[\s_-]*keys?|access[\s_-]*tokens?|"
+        r"refresh[\s_-]*tokens?|private[\s_-]*keys?|otps?|cvv|cvc|"
+        r"credit[\s_-]*cards?|bank[\s_-]*accounts?|ssn|aadhaar|aadhar|"
+        r"passport numbers?)\b",
+        text,
+        re.IGNORECASE,
+    )
+    password_value_target = re.search(
+        r"\b(password|passcode|passphrase)\s+(for|of|belonging to)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if support_topic and not direct_question and not other_secret and not password_value_target:
         return False
 
     return bool(direct_verb_request or direct_question)
