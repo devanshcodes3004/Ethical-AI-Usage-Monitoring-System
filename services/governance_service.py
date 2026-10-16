@@ -102,7 +102,7 @@ class GovernanceService:
         )
         has_problem = bool(
             re.search(
-                r"\b(problem|problems|issue|issues|complaint|complaints|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b",
+                r"\b(problem|problems|issue|issues|complaint|complaints|del[io]ver(?:y|ies)|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b",
                 text,
             )
         )
