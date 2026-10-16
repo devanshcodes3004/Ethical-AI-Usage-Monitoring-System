@@ -98,7 +98,7 @@ class GovernanceService:
             re.search(r"\b(how many|count|number of|total number of)\b", text)
         )
         has_customer = bool(
-            re.search(r"\b(customer|customers|client|clients)\b", text)
+            re.search(r"\b(customer|customers|client|clients|clint|clints)\b", text)
         )
         has_problem = bool(
             re.search(
