@@ -112,6 +112,11 @@ class ChatService:
             and re.search(r"\b(id|ids|identifier|identifiers)\b", prompt or "", re.IGNORECASE)
             and re.search(r"\b(problem|problems|issue|issues|complaint|complaints|facing|affected|open|pending)\b", prompt or "", re.IGNORECASE)
         )
+        asks_customer_problem_count = bool(
+            re.search(r"\b(how many|count|number of|total number of)\b", prompt or "", re.IGNORECASE)
+            and re.search(r"\b(customer|customers|client|clients)\b", prompt or "", re.IGNORECASE)
+            and re.search(r"\b(problem|problems|issue|issues|complaint|complaints|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b", prompt or "", re.IGNORECASE)
+        )
         asks_top_customer_problems = bool(
             re.search(
                 r"\b(top|most common|most frequent|frequent)\b.{0,60}\b(customer|client)?\s*(problems?|issues?|complaints?)\b|"
@@ -121,7 +126,7 @@ class ChatService:
             )
         )
 
-        data_context = "" if (asks_top_customer_problems or asks_customer_problem_ids) else data_service.retrieve_context(prompt)
+        data_context = "" if (asks_top_customer_problems or asks_customer_problem_ids or asks_customer_problem_count) else data_service.retrieve_context(prompt)
 
         if asks_customer_problem_ids:
             affected_customers = data_service.get_customers_with_problems(prompt, limit=10)
@@ -138,6 +143,15 @@ class ChatService:
                     "Check that it contains a customer_id column, a problem/issue/complaint or category column, "
                     "and (if present) a status such as Open or Pending."
                 )
+        elif asks_customer_problem_count:
+            customer_count = data_service.count_customers_with_problems(prompt)
+            category = data_service._problem_bucket(prompt)
+            response = (
+                f"Found **{customer_count} unique customer(s)** with matching "
+                f"active or unspecified-status problem records in the uploaded CSV for **{category}**. "
+                "Records marked resolved, closed, completed, or fixed are excluded. "
+                "No personal contact details or credentials are returned."
+            )
         elif asks_top_customer_problems:
             top_problems = data_service.get_top_customer_problems(limit=2)
             if top_problems:
