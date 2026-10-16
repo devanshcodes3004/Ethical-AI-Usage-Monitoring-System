@@ -115,7 +115,7 @@ class ChatService:
         asks_customer_problem_count = bool(
             re.search(r"\b(how many|count|number of|total number of)\b", prompt or "", re.IGNORECASE)
             and re.search(r"\b(customer|customers|client|clients)\b", prompt or "", re.IGNORECASE)
-            and re.search(r"\b(problem|problems|issue|issues|complaint|complaints|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b", prompt or "", re.IGNORECASE)
+            and re.search(r"\b(problem|problems|issue|issues|complaint|complaints|del[io]ver(?:y|ies)|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b", prompt or "", re.IGNORECASE)
         )
         asks_top_customer_problems = bool(
             re.search(
