@@ -376,7 +376,7 @@ class CSVDataService:
         """Group free-text complaint descriptions into useful recurring categories."""
         text = (label or "").casefold()
         patterns = (
-            ("Delivery or shipping delays", r"\b(delivery|deliver|shipping|shipment|late|delayed|courier|tracking)\b"),
+            ("Delivery or shipping delays", r"\b(del[io]ver(?:y|ies)|delivery|deliver|shipping|shipment|late|delayed|courier|tracking)\b"),
             ("Payment or billing problems", r"\b(payment|paid|billing|bill|charged|charge|transaction|upi|card declined)\b"),
             ("Refund or return problems", r"\b(refund|return|replacement|exchange|reimburse)\b"),
             ("Login or account access", r"\b(login|log in|sign.?in|password|account access|locked out|otp)\b"),
