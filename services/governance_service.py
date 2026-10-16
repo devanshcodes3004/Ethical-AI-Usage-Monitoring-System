@@ -48,6 +48,17 @@ class GovernanceService:
                 reason = f"Matched policy: {matched_policy.get('name', 'Unnamed policy')}."
             return self._policy_decision(action, risk_score, reason, matched_policy)
 
+        # Counts of customers with a specified problem category are likewise
+        # a minimized operational query. The explicit BLOCK/WARN policy check
+        # above still takes precedence.
+        if self._is_customer_problem_count_lookup(prompt):
+            return self._policy_decision(
+                "ALLOW",
+                0,
+                "Allowed: aggregate count of customers with matching problem records; personal fields are not returned.",
+                {"name": "Minimized customer issue count", "category": "Business Data"},
+            )
+
         # A narrowly scoped request for IDs of customers with issues is an
         # approved operational lookup, not a request to expose contact data.
         # The downstream query returns at most 10 IDs plus issue/status only.
@@ -79,6 +90,23 @@ class GovernanceService:
             )[:300]
 
         return decision
+
+    @staticmethod
+    def _is_customer_problem_count_lookup(prompt):
+        text = (prompt or "").casefold()
+        has_count_intent = bool(
+            re.search(r"\b(how many|count|number of|total number of)\b", text)
+        )
+        has_customer = bool(
+            re.search(r"\b(customer|customers|client|clients)\b", text)
+        )
+        has_problem = bool(
+            re.search(
+                r"\b(problem|problems|issue|issues|complaint|complaints|delivery|deliveries|shipping|payment|billing|refund|return|login|account|product|damaged|support)\b",
+                text,
+            )
+        )
+        return has_count_intent and has_customer and has_problem
 
     @staticmethod
     def _is_customer_problem_id_lookup(prompt):
