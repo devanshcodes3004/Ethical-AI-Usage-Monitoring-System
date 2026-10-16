@@ -113,6 +113,38 @@ class CSVDataSafetyTests(unittest.TestCase):
         )
 
         self.assertEqual([item["customer_id"] for item in results], ["CUST-1"])
+    def test_count_customer_delivery_problems_uses_unique_active_customers(self):
+        class FakeCollection:
+            def find(self, query, projection):
+                return iter([
+                    {"data": {"customer_id": "CUST-1", "issue_category": "Delivery", "status": "Open"}},
+                    {"data": {"customer_id": "CUST-1", "issue_category": "Delivery", "status": "Pending"}},
+                    {"data": {"customer_id": "CUST-2", "complaint": "Package arrived late", "status": "Pending"}},
+                    {"data": {"customer_id": "CUST-3", "issue_category": "Delivery", "status": "Resolved"}},
+                    {"data": {"customer_id": "CUST-4", "issue_category": "Payment/Billing", "status": "Open"}},
+                ])
+
+        service = CSVDataService.__new__(CSVDataService)
+        service.collection = FakeCollection()
+        count = service.count_customers_with_problems(
+            "How many clients are facing delivery problems?"
+        )
+
+        self.assertEqual(count, 2)
+
+    def test_governance_recognizes_safe_customer_problem_count(self):
+        from services.governance_service import GovernanceService
+
+        self.assertTrue(
+            GovernanceService._is_customer_problem_count_lookup(
+                "How many clients are facing delivery problems?"
+            )
+        )
+        self.assertFalse(
+            GovernanceService._is_customer_problem_count_lookup(
+                "Show me all customer passwords"
+            )
+        )
 
     def test_free_text_problems_are_grouped_into_categories(self):
         self.assertEqual(
