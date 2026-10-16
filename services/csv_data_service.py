@@ -391,8 +391,10 @@ class CSVDataService:
         return re.sub(r"\s+", " ", CSVDataService._redact_values(label).strip())[:180]
 
     def get_customers_with_problems(self, prompt="", limit=10):
-        """Return a small, minimized list of customer IDs with active issue records."""
-        limit = max(1, min(int(limit), 10))
+        """Return minimized customer issue records; list results default to at most 10."""
+        # Normal display requests are capped at 10. A trusted internal count
+        # may pass None to inspect all matching unique customers.
+        max_results = None if limit is None else max(1, min(int(limit), 10))
         documents = self.collection.find({"record_type": "Customer"}, {"_id": 0, "data": 1})
         active_statuses = {
             "open", "pending", "in progress", "in-progress", "escalated",
@@ -469,10 +471,18 @@ class CSVDataService:
                 "status": status or "unspecified",
             })
             seen_ids.add(customer_id)
-            if len(matches) >= limit:
+            if max_results is not None and len(matches) >= max_results:
                 break
 
         return matches
+
+    def count_customers_with_problems(self, prompt=""):
+        """Count unique customers with matching unresolved/active problem records.
+
+        Uses the same category and status filters as the safe customer-list route,
+        but does not apply the 10-result presentation cap.
+        """
+        return len(self.get_customers_with_problems(prompt, limit=None))
 
     def get_top_customer_problems(self, limit=2):
         """Count recurring customer problem categories without exposing personal data."""
