@@ -127,7 +127,7 @@ class CSVDataSafetyTests(unittest.TestCase):
         service = CSVDataService.__new__(CSVDataService)
         service.collection = FakeCollection()
         count = service.count_customers_with_problems(
-            "How many clients are facing delivery problems?"
+            "how many clints are facing problem in the delovery"
         )
 
         self.assertEqual(count, 2)
@@ -137,7 +137,7 @@ class CSVDataSafetyTests(unittest.TestCase):
 
         self.assertTrue(
             GovernanceService._is_customer_problem_count_lookup(
-                "How many clients are facing delivery problems?"
+                "how many clints are facing problem in the delovery"
             )
         )
         self.assertFalse(
@@ -146,6 +146,20 @@ class CSVDataSafetyTests(unittest.TestCase):
             )
         )
 
+    def test_delivery_typo_is_grouped_as_delivery_problem(self):
+        self.assertEqual(
+            CSVDataService._problem_bucket("how many clints are facing problem in the delovery"),
+            "Delivery or shipping delays",
+        )
+
+    def test_governance_recognizes_delivery_count_with_common_typos(self):
+        from services.governance_service import GovernanceService
+
+        self.assertTrue(
+            GovernanceService._is_customer_problem_count_lookup(
+                "how many clints are facing problem in the delovery"
+            )
+        )
     def test_free_text_problems_are_grouped_into_categories(self):
         self.assertEqual(
             CSVDataService._problem_bucket("My package delivery was late"),
